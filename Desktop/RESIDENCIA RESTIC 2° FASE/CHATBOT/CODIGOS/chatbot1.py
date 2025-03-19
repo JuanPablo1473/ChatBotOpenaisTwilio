@@ -5,6 +5,7 @@ from datetime import datetime
 import locale
 from twilio.rest import Client
 from dotenv import load_dotenv
+from flask import Flask, request, jsonify
 
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
@@ -20,6 +21,9 @@ TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
 
 # Inicializar o cliente da OpenAI
 openai.api_key = OPENAI_API_KEY
+
+# Inicializar o Flask
+app = Flask(__name__)
 
 # Função para enviar mensagens para o modelo GPT
 def enviar_mensagem(mensagem):
@@ -102,29 +106,34 @@ def enviar_mensagem_whatsapp(mensagem, numero):
     )
     return mensagem_enviada.sid
 
-# Menu inicial
-def menu_inicial():
-    while True:
-        print("\n1 - Cadastrar Agricultor")
-        print("2 - Perguntar ao Chatbot")
-        print("3 - Enviar mensagem pelo WhatsApp")
-        print("4 - Sair")
-        escolha = input("Opção: ").strip()
-        if escolha == "1":
-            coletar_dados()
-        elif escolha == "2":
-            fluxo_perguntas()
-        elif escolha == "3":
-            numero_destino = input("Informe o número do agricultor no formato +55XXXXXXXXXXX: ")
-            mensagem = input("Digite a mensagem para enviar: ")
-            enviar_mensagem_whatsapp(mensagem, numero_destino)
-            print("Mensagem enviada com sucesso!")
-        elif escolha == "4":
-            print("Até logo!")
-            break
-        else:
-            print("Opção inválida.")
+# Rota Flask para enviar mensagens ao GPT
+@app.route('/enviar_mensagem', methods=['POST'])
+def flask_enviar_mensagem():
+    mensagem = request.json.get('mensagem')
+    if not mensagem:
+        return jsonify({"error": "Mensagem não fornecida"}), 400
+    resposta = enviar_mensagem(mensagem)
+    return jsonify({"resposta": resposta})
 
-# Inicia o menu inicial
+# Rota Flask para coletar dados dos agricultores
+@app.route('/coletar_dados', methods=['POST'])
+def flask_coletar_dados():
+    dados = request.json.get('dados')
+    if not dados:
+        return jsonify({"error": "Dados não fornecidos"}), 400
+    salvar_planilha(dados)
+    return jsonify({"message": "Dados salvos com sucesso!"})
+
+# Rota Flask para enviar WhatsApp
+@app.route('/enviar_whatsapp', methods=['POST'])
+def flask_enviar_whatsapp():
+    numero = request.json.get('numero')
+    mensagem = request.json.get('mensagem')
+    if not numero or not mensagem:
+        return jsonify({"error": "Número ou mensagem não fornecidos"}), 400
+    sid = enviar_mensagem_whatsapp(mensagem, numero)
+    return jsonify({"sid": sid})
+
+# Inicia o servidor Flask
 if __name__ == "__main__":
-    menu_inicial()
+    app.run(debug=True)
